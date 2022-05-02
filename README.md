@@ -1,0 +1,2 @@
+# SnakemakePlastidPhylogenomics-Public
+Snakemake workflow for StandardizedPlastidPhylogenomics
