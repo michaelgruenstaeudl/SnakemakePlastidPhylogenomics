@@ -40,6 +40,7 @@ rule assembly_with_NOVOPlasty:
         NOVO_CFG = config['NOVO_DIR']+"/config.txt",
         MAPREADS1 = rules.readmapping_with_Script05.output[0],
         MAPREADS2 = rules.readmapping_with_Script05.output[1],
+        REFG_FLE = config['REFG_FLE'],
         REFG_PTH = config['REFG_DIR']+"/"+config['REFG_FLE']
     output:
         "{sample}_assembly.log"
@@ -47,15 +48,16 @@ rule assembly_with_NOVOPlasty:
         """
         cp {params.NOVO_EXE} . ;
         cp {params.NOVO_CFG} ./{wildcards.sample}_config.txt ;
+        cp {params.REFG_PTH} . ;
         echo {wildcards.sample} > {wildcards.sample}_assembly.log ;
-
-        head -n2 {params.MAPREADS1} >> seed.fasta ;
-        
-        sed -i "s/Test/{sample}/" {wildcards.sample}_config.txt ;
+        set +o pipefail ; ## Necessary for pipe operators in following line
+        zcat {params.MAPREADS1} | head -n2 | sed 's/@/>/' > seed.fasta ;
+        sed -i "s/Test/{wildcards.sample}/" {wildcards.sample}_config.txt ;
         sed -i "s/mito/chloro/" {wildcards.sample}_config.txt ;
         sed -i "s/12000-22000/140000-180000/" {wildcards.sample}_config.txt ;
+        sed -i "s/\/path\/to\/seed_file\/Seed.fasta/seed.fasta/" {wildcards.sample}_config.txt ;
         sed -i "s/\/path\/to\/reads\/reads_1.fastq/{params.MAPREADS1}/" {wildcards.sample}_config.txt ;
         sed -i "s/\/path\/to\/reads\/reads_2.fastq/{params.MAPREADS2}/" {wildcards.sample}_config.txt ;
-        sed -i "s/\/path\/to\/reference_file\/reference.fasta \(optional\)/{params.REFG_PTH}/" {wildcards.sample}_config.txt ;
-        
+        sed -i "s/\/path\/to\/reference_file\/reference.fasta (optional)/{params.REFG_FLE}/" {wildcards.sample}_config.txt ;
+        #perl {params.NOVO_EXE} -c {wildcards.sample}_config.txt >> {wildcards.sample}_assembly.log
         """
