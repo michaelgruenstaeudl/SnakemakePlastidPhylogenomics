@@ -1,5 +1,7 @@
 configfile: "snakefile.config.yaml"
 
+# Example usage: snakemake -j 1 output_CAR455c/
+
 #__author__ = 'Michael Gruenstaeudl <m.gruenstaeudl@fu-berlin.de>'
 #__info__ = 'Snakefile for assemblying plastid genomes'
 #__version__ = '2022.05.03.1400'
@@ -12,7 +14,8 @@ configfile: "snakefile.config.yaml"
 
 rule all:
     input:
-        "{sample}_assembly.log"
+#        "{sample}_assembly.log"
+        directory("output_{sample}")
 
 rule readmapping_with_Script05:
     input:
@@ -23,13 +26,27 @@ rule readmapping_with_Script05:
         REFG_NME = config['REFG_FLE'].strip(".fasta")
     output:
         (
-        expand("{{sample}}.MappedAgainst.{refg_nme}_R1.fastq.gz", refg_nme=config['REFG_FLE'].strip(".fasta")),
-        expand("{{sample}}.MappedAgainst.{refg_nme}_R2.fastq.gz", refg_nme=config['REFG_FLE'].strip(".fasta"))
+        expand("{{sample}}.MappedAgainst.{refg_nme}_R1.fastq", refg_nme=config['REFG_FLE'].strip(".fasta")),
+        expand("{{sample}}.MappedAgainst.{refg_nme}_R2.fastq", refg_nme=config['REFG_FLE'].strip(".fasta"))
         )
     shell:
         """
         echo {wildcards.sample} > {wildcards.sample}_readmapping.log ;
         bash {params.SCR5_EXE} {input.RAWREADS} {params.REFG_PTH} {wildcards.sample}_readmapping.log {wildcards.sample} ;
+        """
+
+rule filehygiene_after_readmapping:
+    input:
+        rules.readmapping_with_Script05.output
+    params:
+        REFG_NME = config['REFG_FLE'].strip(".fasta")
+    output:
+        (
+        expand("{{sample}}.MappedAgainst.{refg_nme}_R1.fastq.gz", refg_nme=config['REFG_FLE'].strip(".fasta")),
+        expand("{{sample}}.MappedAgainst.{refg_nme}_R2.fastq.gz", refg_nme=config['REFG_FLE'].strip(".fasta"))
+        )
+    shell:
+        """
         rm {wildcards.sample}.MappedAgainst.{params.REFG_NME}.bam ;
         rm {wildcards.sample}.MappedAgainst.{params.REFG_NME}.fastq ;
         rm {wildcards.sample}.MappedAgainst.{params.REFG_NME}.*.stats ;
@@ -41,13 +58,14 @@ rule readmapping_with_Script05:
 
 rule assembly_with_NOVOPlasty:
     input:
-        rules.readmapping_with_Script05.output
+        rules.readmapping_with_Script05.output,
+        rules.filehygiene_after_readmapping.output
     params:
         NOVO_DIR = config['NOVO_DIR'],
         NOVO_EXE = config['NOVO_DIR']+"/NOVOPlasty3.8.3.pl",
         NOVO_CFG = config['NOVO_DIR']+"/config.txt",
-        MAPREADS1 = rules.readmapping_with_Script05.output[0],
-        MAPREADS2 = rules.readmapping_with_Script05.output[1],
+        MAPREADS1 = rules.filehygiene_after_readmapping.output[0],
+        MAPREADS2 = rules.filehygiene_after_readmapping.output[1],
         REFG_FLE = config['REFG_FLE'],
         REFG_PTH = config['REFG_DIR']+"/"+config['REFG_FLE']
     output:
@@ -70,11 +88,22 @@ rule assembly_with_NOVOPlasty:
         sed -i "s/\/path\/to\/reads\/reads_1.fastq/{params.MAPREADS1}/" {wildcards.sample}_config.txt ;
         sed -i "s/\/path\/to\/reads\/reads_2.fastq/{params.MAPREADS2}/" {wildcards.sample}_config.txt ;
         perl {params.NOVO_EXE} -c {wildcards.sample}_config.txt >> {wildcards.sample}_assembly.log ;
+        """
+
+rule filehygiene_after_assembly:
+    input:
+        rules.assembly_with_NOVOPlasty.output
+    params:
+        REFG_FLE = config['REFG_FLE']
+    output:
+        directory("output_{sample}")
+    shell:
+        """
         rm ./{wildcards.sample}_config.txt ;
         rm ./{params.REFG_FLE} ;
         rm ./NOVOPlasty3.8.3.pl ;
         rm ./seed.fasta ;
-        TMPNME=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 6) ;  ## Generate a unique folder name
+        TMPNME=$(set +o pipefail ; tr -dc A-Za-z0-9 </dev/urandom | head -c 6) ;  ## Generate a unique folder name; "set +o pipefail" is necessary for pipe operators
         mkdir $TMPNME ;
         mv *{wildcards.sample}* $TMPNME/ ;
         mv $TMPNME output_{wildcards.sample}/ ;
