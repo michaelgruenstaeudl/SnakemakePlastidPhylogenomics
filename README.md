@@ -14,15 +14,26 @@ Prerequisites:
 
 USAGE
 -----
+
+#### Mandatory files
 ```
-## Conducting assemblies
+$ ls
+Snakefile
+snakefile.config.yaml
+```
+
+#### Conducting assemblies
+```
 snakemake -j 1 output_sample1/
 snakemake -j 1 output_sample2/
 snakemake -j 1 output_sample3/
+```
 
-## Vizualizing graphs
+#### Vizualizing graphs
+```
 snakemake --dag output_{sample1,sample2,sample3} | dot -Tsvg > dag.svg
 ```
+
 
 NOTE
 ----
