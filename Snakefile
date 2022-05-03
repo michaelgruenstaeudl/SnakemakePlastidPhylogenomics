@@ -5,9 +5,10 @@ configfile: "snakefile.config.yaml"
 #__version__ = '2022.05.03.1400'
 
 ## TO-DO
-#   1. Improve logging by using in-built log function
-#   2. If statement if files already existant
+#   1. Improve logging by using snakemake's log()-function
+#   2. If-statement if files already existant
 #   3. Different steps in different folders
+#   4. Use snakemake's temp()-function for temporary data
 
 rule all:
     input:
