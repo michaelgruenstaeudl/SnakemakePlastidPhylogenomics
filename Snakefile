@@ -1,7 +1,13 @@
 configfile: "snakefile.config.yaml"
 
+#__author__ = 'Michael Gruenstaeudl <m.gruenstaeudl@fu-berlin.de>'
+#__info__ = 'Snakefile for assemblying plastid genomes'
+#__version__ = '2022.05.03.1400'
+
 ## TO-DO
 #   1. Improve logging by using in-built log function
+#   2. If statement if files already existant
+#   3. Different steps in different folders
 
 rule all:
     input:
@@ -9,7 +15,7 @@ rule all:
 
 rule readmapping_with_Script05:
     input:
-        RAWREADS = expand("{mysrc}/{{sample}}_{R}.fastq.gz", mysrc=config['READ_DIR'], R=[1,2])
+        RAWREADS = expand("{mysrc}/{{sample}}_R{R}.fastq.gz", mysrc=config['READ_DIR'], R=[1,2])
     params:
         SCR5_EXE = config['SCR5_PTH'],
         REFG_PTH = config['REFG_DIR']+"/"+config['REFG_FLE'],
@@ -27,6 +33,7 @@ rule readmapping_with_Script05:
         rm {wildcards.sample}.MappedAgainst.{params.REFG_NME}.fastq ;
         rm {wildcards.sample}.MappedAgainst.{params.REFG_NME}.*.stats ;
         rm {wildcards.sample}.MappedAgainst.{params.REFG_NME}.refdb.log ;
+        rm -r db ;
         gzip {wildcards.sample}.MappedAgainst.{params.REFG_NME}_R1.fastq ;
         gzip {wildcards.sample}.MappedAgainst.{params.REFG_NME}_R2.fastq ;
         """
@@ -50,14 +57,25 @@ rule assembly_with_NOVOPlasty:
         cp {params.NOVO_CFG} ./{wildcards.sample}_config.txt ;
         cp {params.REFG_PTH} . ;
         echo {wildcards.sample} > {wildcards.sample}_assembly.log ;
-        set +o pipefail ; ## Necessary for pipe operators in following line
+        set +o pipefail ;  ## Necessary for pipe operators in following line
         zcat {params.MAPREADS1} | head -n2 | sed 's/@/>/' > seed.fasta ;
         sed -i "s/Test/{wildcards.sample}/" {wildcards.sample}_config.txt ;
-        sed -i "s/mito/chloro/" {wildcards.sample}_config.txt ;
+        sed -i "0,/mito/ s//chloro/" {wildcards.sample}_config.txt ;
         sed -i "s/12000-22000/140000-180000/" {wildcards.sample}_config.txt ;
         sed -i "s/\/path\/to\/seed_file\/Seed.fasta/seed.fasta/" {wildcards.sample}_config.txt ;
+        sed -i "s/Extend seed directly  = no/Extend seed directly  = yes/" {wildcards.sample}_config.txt ;
+        sed -i "s/\/path\/to\/reference_file\/reference.fasta (optional)/{params.REFG_FLE}/" {wildcards.sample}_config.txt ;
+        sed -i 's/\/path\/to\/chloroplast_file\/chloroplast.fasta (only for "mito_plant" option)//' {wildcards.sample}_config.txt ;
         sed -i "s/\/path\/to\/reads\/reads_1.fastq/{params.MAPREADS1}/" {wildcards.sample}_config.txt ;
         sed -i "s/\/path\/to\/reads\/reads_2.fastq/{params.MAPREADS2}/" {wildcards.sample}_config.txt ;
-        sed -i "s/\/path\/to\/reference_file\/reference.fasta (optional)/{params.REFG_FLE}/" {wildcards.sample}_config.txt ;
-        #perl {params.NOVO_EXE} -c {wildcards.sample}_config.txt >> {wildcards.sample}_assembly.log
+        perl {params.NOVO_EXE} -c {wildcards.sample}_config.txt >> {wildcards.sample}_assembly.log ;
+        rm ./{wildcards.sample}_config.txt ;
+        rm ./{params.REFG_FLE} ;
+        rm ./NOVOPlasty3.8.3.pl ;
+        rm ./seed.fasta ;
+        TMPNME=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 6) ;  ## Generate a unique folder name
+        mkdir $TMPNME ;
+        mv *{wildcards.sample}* $TMPNME/ ;
+        mv $TMPNME output_{wildcards.sample}/ ;
+        cp output_{wildcards.sample}/{wildcards.sample}_assembly.log . ;
         """
